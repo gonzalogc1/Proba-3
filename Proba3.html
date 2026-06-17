@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Intervalo de Confianza</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- KaTeX CSS y JS para fórmulas matemáticas -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71bZ0/0Iq" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21T6RZ0BqBOqscmIG5+R0yBElw8oZ8Q+0TofA1E5bA01N0PryI1yKlzT80D6j" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0c10;
+            --panel-bg: rgba(31, 33, 42, 0.7);
+            --primary-color: #4facfe;
+            --secondary-color: #00f2fe;
+            --accent-on: #00f2fe;
+            --accent-off: #3a3f58;
+            --text-main: #e0e0e0;
+            --text-muted: #8a8d9b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, rgba(0, 242, 254, 0.1), transparent 400px),
+                              radial-gradient(circle at bottom left, rgba(79, 172, 254, 0.1), transparent 400px);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .controls-panel::-webkit-scrollbar { width: 6px; }
+        .controls-panel::-webkit-scrollbar-track { background: transparent; }
+        .controls-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .val-badge {
+            background: rgba(0, 242, 254, 0.15);
+            color: var(--secondary-color);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 800;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--secondary-color);
+            height: 6px;
+            background: var(--accent-off);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--secondary-color);
+            box-shadow: 0 0 10px var(--secondary-color);
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            border-color: var(--secondary-color);
+        }
+
+        .results {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid var(--secondary-color);
+            margin-top: 0.5rem;
+        }
+
+        .results p {
+            margin: 0.5rem 0;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .highlight {
+            color: var(--secondary-color);
+            font-weight: 800;
+        }
+
+        .ci-result {
+            font-size: 1.4rem;
+            text-align: center;
+            display: block;
+            margin-top: 10px;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+        }
+
+        .visualization {
+            position: relative;
+            height: 30px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .interval-bar {
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(79,172,254,0.3), rgba(0,242,254,0.6), rgba(79,172,254,0.3));
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .point-estimate {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #fff;
+            transform: translateX(-50%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px #fff;
+            border-radius: 2px;
+        }
+
+        .axis-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Panel de Fórmulas Matemáticas */
+        .math-panel {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .math-panel h3 {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .math-row {
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+        
+        .math-row::-webkit-scrollbar { height: 4px; }
+        .math-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+        .math-row:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Estilos para el Fallback Matemático sin KaTeX */
+        .fallback-math-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--secondary-color);
+        }
+
+        .fallback-math-line .label {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .fallback-math-line .calc {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 1.1rem;
+            color: #fff;
+        }
+
+        .fallback-math-line .calc strong {
+            color: var(--secondary-color);
+            text-shadow: 0 0 5px rgba(0, 242, 254, 0.4);
+        }
+
+        .fallback-fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.9rem;
+            line-height: 1.1;
+            margin: 0 6px;
+            vertical-align: middle;
+        }
+
+        .fallback-fraction .top {
+            border-bottom: 1px solid rgba(255,255,255,0.4);
+            padding: 0 4px 2px;
+        }
+
+        .fallback-fraction .bottom {
+            padding: 2px 4px 0;
+        }
+
+        /* Problem Context Banner */
+        .problem-context {
+            width: 100%;
+            max-width: 1400px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            margin-bottom: 2rem;
+            border-left: 5px solid var(--secondary-color);
+        }
+
+        .problem-context h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .problem-context p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #fff;
+        }
+
+        /* House Grid System */
+        .grid-panel {
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .grid-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .grid-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .grid-stats {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .houses-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
+            gap: 12px;
+            overflow-y: auto;
+            align-content: start;
+            padding-right: 10px;
+            user-select: none; /* Evitar selección de texto al arrastrar */
+        }
+        
+        /* Custom Scrollbar for houses */
+        .houses-container::-webkit-scrollbar { width: 8px; }
+        .houses-container::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 4px; }
+        .houses-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+
+        .house-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            padding: 4px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.02);
+            pointer-events: auto; /* Necesario para los eventos del mouse */
+        }
+
+        .house-icon:hover {
+            transform: scale(1.15) translateY(-2px);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .house-icon svg {
+            width: 100%;
+            height: auto;
+            max-width: 28px;
+            fill: var(--accent-off);
+            transition: all 0.3s ease;
+            pointer-events: none; /* Que el clic caiga en el div, no en el svg */
+        }
+
+        .house-icon.on .wifi-signal {
+            fill: var(--secondary-color);
+            filter: drop-shadow(0 0 6px var(--secondary-color));
+            animation: pulseWifi 2s infinite alternate;
+        }
+
+        .house-icon.on .house-base {
+            fill: #e0e0e0;
+        }
+
+        .house-icon.off .wifi-signal {
+            opacity: 0.2;
+        }
+
+        @keyframes pulseWifi {
+            0% { filter: drop-shadow(0 0 2px var(--secondary-color)); }
+            100% { filter: drop-shadow(0 0 10px var(--secondary-color)); }
+        }
+
+        @media (max-width: 900px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            .grid-panel {
+                height: 50vh;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="problem-context">
+        <h1>Estimación de Proporción Poblacional</h1>
+        <p>En una ciudad, se quiere estimar la proporción de hogares que tienen acceso a internet. Se toma una muestra aleatoria de <strong id="header-n">200</strong> hogares, y se encuentra que <strong id="header-x">146</strong> de ellos tienen acceso a internet. Construye un intervalo de confianza del <strong id="header-conf">95%</strong> para la proporción poblacional de hogares con acceso a internet e interpreta el resultado.</p>
+    </div>
+
+    <div class="dashboard">
+        <!-- Panel Izquierdo: Controles -->
+        <div class="panel controls-panel">
+            <div>
+                <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.5rem;">Panel de Control</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    Haz clic o arrastra sobre las casas para encenderlas o apagarlas masivamente.
+                </p>
+            </div>
+
+            <div class="control-group">
+                <label><span>Hogares encuestados (n)</span> <span id="n-val" class="val-badge">200</span></label>
+                <input type="range" id="n-input" min="10" max="500" value="200" step="1">
+            </div>
+
+            <div class="control-group">
+                <label><span>Hogares con internet (x)</span> <span id="x-val" class="val-badge">146</span></label>
+                <input type="range" id="x-input" min="0" max="200" value="146" step="1">
+            </div>
+
+            <div class="control-group">
+                <label>Nivel de Confianza</label>
+                <select id="conf-input">
+                    <option value="1.645">90% (Z = 1.645)</option>
+                    <option value="1.96" selected>95% (Z = 1.96)</option>
+                    <option value="2.576">99% (Z = 2.576)</option>
+                </select>
+            </div>
+
+            <div class="results">
+                <p>Proporción Muestral (<span style="font-family:serif">p̂</span>) <span id="p-hat" class="highlight">73.00%</span></p>
+                <p>Margen de Error (E) <span id="margin-error" style="color: var(--text-muted);">±6.15%</span></p>
+                <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                    <span style="font-size: 0.9rem; color: var(--text-muted);">Intervalo poblacional estimado:</span>
+                    <span id="conf-interval" class="highlight ci-result">[66.85%, 79.15%]</span>
+                </div>
+            </div>
+
+            <div class="visualization-container">
+                <div class="visualization">
+                    <div id="interval-bar" class="interval-bar"></div>
+                    <div id="point-estimate" class="point-estimate"></div>
+                </div>
+                <div class="axis-labels">
+                    <span>0%</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                </div>
+            </div>
+            
+            <!-- Fórmulas Matemáticas Dinámicas -->
+            <div class="math-panel">
+                <h3>Desarrollo Matemático</h3>
+                <div class="math-row" id="math-p"></div>
+                <div class="math-row" id="math-se"></div>
+                <div class="math-row" id="math-e"></div>
+            </div>
+        </div>
+
+        <!-- Panel Derecho: Visualización de Casas -->
+        <div class="panel grid-panel">
+            <div class="grid-header">
+                <h2>Muestra Poblacional</h2>
+                <div class="grid-stats">
+                    <span style="color: var(--secondary-color); font-weight: bold;">■ Con Internet</span> / <span style="color: var(--accent-off); font-weight: bold;">■ Sin Internet</span>
+                </div>
+            </div>
+            <div class="houses-container" id="houses-container">
+                <!-- Casas generadas por JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const nInput = document.getElementById('n-input');
+        const xInput = document.getElementById('x-input');
+        const confInput = document.getElementById('conf-input');
+
+        const nVal = document.getElementById('n-val');
+        const xVal = document.getElementById('x-val');
+
+        const pHatEl = document.getElementById('p-hat');
+        const meEl = document.getElementById('margin-error');
+        const ciEl = document.getElementById('conf-interval');
+
+        const intervalBar = document.getElementById('interval-bar');
+        const pointEstimate = document.getElementById('point-estimate');
+        
+        const housesContainer = document.getElementById('houses-container');
+
+        // Variables para selección de arrastre (Drag-to-select)
+        let isDragging = false;
+        let dragAction = null; // 'on' o 'off'
+
+        const houseSVG = `
+            <svg class="wifi-signal" viewBox="0 0 24 16" preserveAspectRatio="xMidYMid meet">
+                <path d="M12 2C7.3 2 3.1 3.7 0 6.5l2 2.5C4.6 6.7 8.1 5.2 12 5.2s7.4 1.5 10 3.8l2-2.5C20.9 3.7 16.7 2 12 2zm0 5.5c-2.8 0-5.4.9-7.6 2.5l2 2.5c1.6-1.2 3.5-1.8 5.6-1.8s4 .6 5.6 1.8l2-2.5c-2.2-1.6-4.8-2.5-7.6-2.5zm0 5.5c-1.1 0-2.2.4-3.1 1.1l3.1 3.9 3.1-3.9c-.9-.7-2-1.1-3.1-1.1z"/>
+            </svg>
+            <svg class="house-base" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+        `;
+
+        // Renderizado inicial o cuando cambia N
+        function renderHouses(n, x) {
+            housesContainer.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            for (let i = 0; i < n; i++) {
+                const houseDiv = document.createElement('div');
+                const status = i < x ? 'on' : 'off';
+                houseDiv.className = `house-icon ${status}`;
+                houseDiv.innerHTML = houseSVG;
+                fragment.appendChild(houseDiv);
+            }
+            housesContainer.appendChild(fragment);
+        }
+
+        // --- Lógica de Arrastre (Drag-to-select) ---
+        
+        function toggleHouse(house, action) {
+            if (action === 'on' && house.classList.contains('off')) {
+                house.classList.replace('off', 'on');
+            } else if (action === 'off' && house.classList.contains('on')) {
+                house.classList.replace('on', 'off');
+            }
+        }
+
+        // Mousedown: Inicia el arrastre
+        housesContainer.addEventListener('mousedown', (e) => {
+            const house = e.target.closest('.house-icon');
+            if (house) {
+                isDragging = true;
+                // Si la casa está apagada, el arrastre encenderá. Si está encendida, apagará.
+                dragAction = house.classList.contains('on') ? 'off' : 'on';
+                toggleHouse(house, dragAction);
+            }
+        });
+
+        // Mouseover: Arrastre por encima de otras casas
+        housesContainer.addEventListener('mouseover', (e) => {
+            if (isDragging) {
+                const house = e.target.closest('.house-icon');
+                if (house) {
+                    toggleHouse(house, dragAction);
+                }
+            }
+        });
+
+        // Mouseup y Mouseleave: Finaliza el arrastre y recalcula
+        function stopDragging() {
+            if (isDragging) {
+                isDragging = false;
+                syncXWithVisuals();
+            }
+        }
+        window.addEventListener('mouseup', stopDragging);
+        
+        // --- Sincronización Bidireccional ---
+
+        // Cuenta cuántas casas visuales están encendidas y actualiza el slider X
+        function syncXWithVisuals() {
+            const onCount = housesContainer.querySelectorAll('.house-icon.on').length;
+            xInput.value = onCount;
+            xVal.textContent = onCount;
+            calcularEstadisticas(parseInt(nInput.value), onCount);
+        }
+
+        // Si el usuario mueve el slider de X, ajusta el DOM respetando lo más posible
+        function updateHousesToMatchX(targetX) {
+            const houses = Array.from(housesContainer.children);
+            const onHouses = houses.filter(h => h.classList.contains('on'));
+            let diff = targetX - onHouses.length;
+            
+            if (diff > 0) {
+                // Faltan encender. Encendemos desde las primeras apagadas disponibles.
+                const offHouses = houses.filter(h => h.classList.contains('off'));
+                for (let i = 0; i < diff && i < offHouses.length; i++) {
+                    offHouses[i].classList.replace('off', 'on');
+                }
+            } else if (diff < 0) {
+                // Sobran encendidas. Apagamos desde las últimas encendidas.
+                diff = Math.abs(diff);
+                for (let i = onHouses.length - 1; i >= onHouses.length - diff && i >= 0; i--) {
+                    onHouses[i].classList.replace('on', 'off');
+                }
+            }
+        }
+
+        // --- Cálculos y UI ---
+        
+        let currentN = 0; // Se inicializa en 0 para forzar el primer renderHouses
+
+        function calcularIntervaloBase() {
+            let n = parseInt(nInput.value);
+            let x = parseInt(xInput.value);
+
+            if (x > n) {
+                x = n;
+                xInput.value = n;
+            }
+            xInput.max = n;
+
+            nVal.textContent = n;
+            xVal.textContent = x;
+            
+
+            if (n !== currentN) {
+                renderHouses(n, x);
+                currentN = n;
+            } else {
+                updateHousesToMatchX(x);
+            }
+
+            calcularEstadisticas(n, x);
+        }
+
+        function renderKaTeXFormulas(n, x, p, se, e, z) {
+            const elP = document.getElementById('math-p');
+            const elSe = document.getElementById('math-se');
+            const elE = document.getElementById('math-e');
+
+            // Se asegura de que KaTeX esté cargado
+            if (typeof katex !== 'undefined') {
+                const pFormula = `\\hat{p} = \\frac{x}{n} = \\frac{${x}}{${n}} = ${p.toFixed(4)}`;
+                const seFormula = `SE = \\sqrt{\\frac{\\hat{p}(1-\\hat{p})}{n}} = \\sqrt{\\frac{${p.toFixed(4)}(1-${p.toFixed(4)})}{${n}}} = ${se.toFixed(4)}`;
+                const eFormula = `E = Z \\cdot SE = ${z} \\cdot ${se.toFixed(4)} = ${e.toFixed(4)}`;
+
+                katex.render(pFormula, elP, { displayMode: true, throwOnError: false });
+                katex.render(seFormula, elSe, { displayMode: true, throwOnError: false });
+                katex.render(eFormula, elE, { displayMode: true, throwOnError: false });
+            } else {
+                // Fallback con HTML y CSS avanzado (fracciones visuales)
+                elP.innerHTML = `
+                    <div class="fallback-math-line">
+                        <span class="label">Proporción (p̂)</span>
+                        <span class="calc">
+                            <span class="fallback-fraction"><span class="top">${x}</span><span class="bottom">${n}</span></span> = <strong>${p.toFixed(4)}</strong>
+                        </span>
+                    </div>`;
+                    
+                elSe.innerHTML = `
+                    <div class="fallback-math-line">
+                        <span class="label">Error Estándar (SE)</span>
+                        <span class="calc">
+                            √<span class="fallback-fraction"><span class="top">${p.toFixed(4)} × ${ (1-p).toFixed(4) }</span><span class="bottom">${n}</span></span> = <strong>${se.toFixed(4)}</strong>
+                        </span>
+                    </div>`;
+                    
+                elE.innerHTML = `
+                    <div class="fallback-math-line">
+                        <span class="label">Margen de Error (E)</span>
+                        <span class="calc">${z} × ${se.toFixed(4)} = <strong>${e.toFixed(4)}</strong></span>
+                    </div>`;
+            }
+        }
+
+        function calcularEstadisticas(n, x) {
+            // Actualizar datos del párrafo de contexto
+            document.getElementById('header-n').textContent = n;
+            document.getElementById('header-x').textContent = x;
+            const confText = confInput.options[confInput.selectedIndex].text.split(' ')[0];
+            document.getElementById('header-conf').textContent = confText;
+
+            let z = parseFloat(confInput.value);
+            let p = x / n; 
+            
+            // Si n es 0 para evitar NaN
+            if (n === 0) p = 0;
+            
+            let errorEstandar = Math.sqrt((p * (1 - p)) / n);
+            if (isNaN(errorEstandar)) errorEstandar = 0;
+            
+            let margenError = z * errorEstandar;
+
+            let limiteInferior = Math.max(0, p - margenError);
+            let limiteSuperior = Math.min(1, p + margenError);
+
+            if (isNaN(limiteInferior)) limiteInferior = 0;
+            if (isNaN(limiteSuperior)) limiteSuperior = 0;
+
+            // UI Textos
+            pHatEl.textContent = (p * 100).toFixed(2) + '%';
+            meEl.textContent = '±' + (margenError * 100).toFixed(2) + '%';
+            ciEl.textContent = '[' + (limiteInferior * 100).toFixed(2) + '%, ' + (limiteSuperior * 100).toFixed(2) + '%]';
+
+            // Gráfica inferior
+            intervalBar.style.left = (limiteInferior * 100) + '%';
+            intervalBar.style.width = ((limiteSuperior - limiteInferior) * 100) + '%';
+            pointEstimate.style.left = (p * 100) + '%';
+            
+            // Fórmulas dinámicas
+            renderKaTeXFormulas(n, x, p, errorEstandar, margenError, z);
+        }
+
+        // Listeners Slider
+        nInput.addEventListener('input', calcularIntervaloBase);
+        xInput.addEventListener('input', calcularIntervaloBase);
+        confInput.addEventListener('change', () => calcularEstadisticas(parseInt(nInput.value), parseInt(xInput.value)));
+
+        // Iniciar
+        // Usamos un listener para asegurar que todo haya cargado antes de renderizar (incluyendo KaTeX)
+        window.addEventListener('load', () => {
+            calcularIntervaloBase();
+            // Intento secundario por si el CDN tarda un poco más en inicializarse
+            setTimeout(() => {
+                calcularEstadisticas(parseInt(nInput.value), parseInt(xInput.value));
+            }, 800);
+        });
+
+    </script>
+</body>
+
+</html>
